@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Умное освещение</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            color: #333;
+        }
+
+        p {
+            font-size: 1.5em;
+        }
+
+        button {
+            font-size: 1.5em;
+            padding: 15px 30px;
+            margin: 10px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        button:active {
+            background-color: #1e7e34;
+        }
+
+        input[type="range"] {
+            width: 80%;
+            height: 25px;
+            -webkit-appearance: none;
+            background: #ddd;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 25px;
+            height: 25px;
+            background: #007bff;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        #brightness {
+            font-size: 2em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        #light-state {
+            font-size: 2em;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>Система умного освещения</h1>
+    <div>
+        <p>Состояние света: <span id="light-state">{{ 'Включен' if light_state else 'Выключен' }}</span></p>
+        <button onclick="controlLight('on')">Включить свет</button>
+        <button onclick="controlLight('off')">Выключить свет</button>
+    </div>
+    <div>
+        <p>Яркость: <span id="brightness">{{ brightness }}</span>%</p>
+        <input type="range" min="0" max="100" value="{{ brightness }}" id="brightness-slider" oninput="setBrightness(this.value)">
+    </div>
+
+    <script>
+        // Функция управления светом (включение/выключение)
+        function controlLight(action) {
+            fetch(`/light/${action}`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                // После изменения состояния света перезагружаем страницу
+                location.reload();
+            });
+        }
+
+        // Функция для установки яркости
+        function setBrightness(brightness) {
+            document.getElementById('brightness').textContent = brightness; // Обновляем текстовое отображение яркости
+            fetch('/light/brightness', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `brightness=${brightness}`
+            });
+        }
+    </script>
+</body>
+</html>

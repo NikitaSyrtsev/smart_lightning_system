@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>История событий</title>
+</head>
+<body>
+    <h1>История событий</h1>
+    <table border="1">
+        <tr>
+            <th>ID</th>
+            <th>Время</th>
+            <th>Тип события</th>
+            <th>Детали</th>
+        </tr>
+        {% for event in events %}
+        <tr>
+            <td>{{ event[0] }}</td>
+            <td>{{ event[1] }}</td>
+            <td>{{ event[2] }}</td>
+            <td>{{ event[3] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

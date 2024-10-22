@@ -1,11 +1,18 @@
 import random
 import time
+import sqlite3
 import requests
 from flask import Flask, render_template, request, jsonify
 from threading import Thread
+from dotenv import load_dotenv
+import os
+
+# Импортируем функции шифрования из encryption.py
+from encryption import encrypt_data, decrypt_data
 
 # Настройки для API OpenWeatherMap
-API_KEY = 'dca475aa5e17cdcb35a1ff43d766be60'
+load_dotenv('config.env')
+API_KEY = os.getenv('API_KEY')
 lat = 47.14
 lon = 38.54
 WEATHER_URL = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_KEY}"
@@ -80,6 +87,42 @@ class Controller:
         else:
             self.light.turn_off()
 
+# Работа с базой данных SQLite с шифрованием данных
+def init_db():
+    conn = sqlite3.connect('lighting_data.db')
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS logs
+                      (timestamp TEXT, action TEXT, brightness TEXT)''')
+    conn.commit()
+    conn.close()
+
+def log_to_db(action, brightness):
+    encrypted_action = encrypt_data(action)
+    encrypted_brightness = encrypt_data(str(brightness))
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    conn = sqlite3.connect('lighting_data.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO logs (timestamp, action, brightness) VALUES (?, ?, ?)',
+                   (timestamp, encrypted_action, encrypted_brightness))
+    conn.commit()
+    conn.close()
+
+def read_logs():
+    conn = sqlite3.connect('lighting_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM logs')
+    rows = cursor.fetchall()
+    conn.close()
+
+    decrypted_logs = []
+    for row in rows:
+        timestamp = row[0]
+        action = decrypt_data(row[1])
+        brightness = decrypt_data(row[2])
+        decrypted_logs.append((timestamp, action, brightness))
+    return decrypted_logs
+
 # Flask приложение для управления светом
 app = Flask(__name__)
 
@@ -89,67 +132,41 @@ motion_sensor = MotionSensor()
 light_sensor = LightSensor()
 controller = Controller(light, motion_sensor, light_sensor)
 
+# Инициализация базы данных
+init_db()
+
 # Маршрут главной страницы
 @app.route('/')
 def index():
-    return render_template('index.html', light_state=light.state, brightness=light.brightness)
+    logs = read_logs()
+    return render_template('index.html', light_state=light.state, brightness=light.brightness, logs=logs)
 
 # API для управления светом через интерфейс
 @app.route('/light/on', methods=['POST'])
 def turn_on_light():
     light.turn_on()
+    log_to_db('light_on', light.brightness)
     return jsonify({'state': light.state})
 
 @app.route('/light/off', methods=['POST'])
 def turn_off_light():
     light.turn_off()
+    log_to_db('light_off', light.brightness)
     return jsonify({'state': light.state})
 
 @app.route('/light/brightness', methods=['POST'])
 def set_brightness():
     level = request.form.get('brightness', 100, type=int)
     light.set_brightness(level)
+    log_to_db('brightness_change', level)
     return jsonify({'brightness': light.brightness})
 
 # Фоновая функция для автоматического управления светом
 def auto_control_light():
     while True:
         controller.check_sensors_and_control_light()
+        log_to_db('auto_control', light.brightness)
         time.sleep(10)  # Проверка каждые 10 секунд
-        
-        
-# import matplotlib.pyplot as plt
-# import numpy as np
-
-# # Генерация случайных данных для датчика движения
-# time = np.arange(0, 100, 1)  # Время от 0 до 100 секунд
-# motion_data = np.random.choice([0, 1], size=len(time))  # 0 - нет движения, 1 - есть движение
-
-# # Генерация случайных данных для датчика освещённости
-# brightness_data = np.random.randint(0, 101, size=len(time))  # Яркость от 0 до 100%
-
-# # Создание двух графиков
-# fig, axs = plt.subplots(2, 1, figsize=(10, 8))
-
-# # График для данных с датчика движения
-# axs[0].plot(time, motion_data, drawstyle='steps-pre', color='blue', label='Движение (0 - нет, 1 - да)')
-# axs[0].set_title('Данные с датчика движения')
-# axs[0].set_xlabel('Время (с)')
-# axs[0].set_ylabel('Движение')
-# axs[0].legend()
-# axs[0].grid(True)
-
-# # График для данных с датчика освещённости
-# axs[1].plot(time, brightness_data, color='orange', label='Яркость (%)')
-# axs[1].set_title('Данные с датчика освещённости')
-# axs[1].set_xlabel('Время (с)')
-# axs[1].set_ylabel('Яркость (%)')
-# axs[1].legend()
-# axs[1].grid(True)
-
-# # Отображение графиков
-# plt.tight_layout()
-# plt.show()
 
 if __name__ == "__main__":
     # Запускаем автоматическое управление светом в отдельном потоке
@@ -159,4 +176,3 @@ if __name__ == "__main__":
 
     # Запускаем Flask-сервер
     app.run(debug=True)
-    
